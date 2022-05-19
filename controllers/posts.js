@@ -20,9 +20,11 @@ const posts = {
   }),
   createdPosts: handleErrorAsync(async (req, res, next) => {
     const { body } = req;
+    
+    if (!mongoose.isObjectIdOrHexString(body.user)) return appError('400', '請檢查 user id 是否正確', next);
+
     const userId = await User.findById(body.user).exec();
-    const checkUser = mongoose.isValidObjectId(userId);
-    if (!checkUser) {
+    if (!userId) {
       appError('400', '使用者不存在', next);
     } else {
       if (body.content || body.user) {
@@ -49,10 +51,14 @@ const posts = {
   }),
   deleteOnePost: handleErrorAsync(async (req, res, next) => {
     const postId = req.params.id;
-    if (mongoose.isValidObjectId(postId) === false) {
-      appError('400', '查無此ID', next);
+    
+    if (!mongoose.isObjectIdOrHexString(postId)) return appError('400', '請檢查貼文 id 是否正確', next);
+    
+    const checkPostId = await Post.findById(postId).exec();
+    if (!checkPostId) {
+      return (appError(400, '貼文ID不存在', next));
     } else {
-      await Post.findByIdAndDelete(id);
+      await Post.findByIdAndDelete(postId);
       const posts = await Post.find();
       handleSuccess(res, posts);
     }
@@ -60,25 +66,25 @@ const posts = {
   updatePost: handleErrorAsync(async (req, res, next) => {
     const { body } = req;
     const postId = req.params.id;
+    if (!mongoose.isObjectIdOrHexString(postId)) return appError('400', '請檢查貼文 id 是否正確', next);
+    
+    const checkPostId = await Post.findById(postId).exec();
+    if (!checkPostId) return (appError(400, '貼文ID不存在', next)); 
+
+    if (!mongoose.isObjectIdOrHexString(body.user)) return appError('400', '請檢查 user id 是否正確', next);
+    
     const userId = await User.findById(body.user).exec();
-    const checkUser = mongoose.isValidObjectId(userId);
-    if(!checkUser) {
-      return (appError(400, "使用者不存在", next));
+    if (!userId) return (appError(400, "使用者不存在", next));
+
+    if (body.content) {
+      await Post.findByIdAndUpdate(postId, body);
+      const updatePost = await Post.find().populate({
+        path: 'user',
+        select: 'name photo'
+      });
+      handleSuccess(res, updatePost);
     } else {
-      if (mongoose.isValidObjectId(postId) === false) {
-        appError('400', '查無此貼文ID', next);
-      } else {
-        if (body.content) {
-          await Post.findByIdAndUpdate(postId, body);
-          const updatePost = await Post.find().populate({
-            path: 'user',
-            select: 'name photo'
-          });
-          handleSuccess(res, updatePost);
-        } else {
-          appError('400', '請填寫 content', next);
-        }
-      }
+      appError('400', '請填寫 content', next);
     }
   }),
 }
